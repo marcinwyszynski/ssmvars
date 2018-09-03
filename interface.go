@@ -14,13 +14,25 @@ type Variable struct {
 	WriteOnly bool
 }
 
-// VariablesRepository is a proxy to variables.
-type VariablesRepository interface {
-	// This can require multiple network calls to the AWS parameter store
-	// so keep in mind to set the timeout of the context to be big
-	// as this operation could take a while in pathological cases
+// Reader provides are 'read-only' proxy to variables stored in SSM.
+type Reader interface {
+	// ListVariables lists all variables for a given namespace. It does
+	// pagination automatically, with 10 entries per page. In pathological
+	// cases, this operation could take a while.
 	ListVariables(ctx context.Context, namespace string) ([]*Variable, error)
+}
 
+// Writer provides are 'write-only' proxy to variables stored in SSM.
+type Writer interface {
+	// CreateVariable creates or updates an existing variable.
 	CreateVariable(ctx context.Context, namespace string, variable *Variable) (*Variable, error)
+
+	// DeleteVariable deletes an existing variable.
 	DeleteVariable(ctx context.Context, namespace, name string) (*Variable, error)
+}
+
+// ReadWriter is a 'read-write' proxy to variables stored in SSM.
+type ReadWriter interface {
+	Reader
+	Writer
 }
