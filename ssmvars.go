@@ -78,7 +78,7 @@ func (r *repositoryImpl) CreateVariable(ctx context.Context, namespace string, v
 }
 
 func (r *repositoryImpl) DeleteVariable(ctx context.Context, namespace, name string) (*Variable, error) {
-	ret, err := r.getVariable(ctx, namespace, name)
+	ret, err := r.ShowVariable(ctx, namespace, name)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (r *repositoryImpl) DeleteVariable(ctx context.Context, namespace, name str
 	return ret, nil
 }
 
-func (r *repositoryImpl) getVariable(ctx context.Context, namespace, name string) (*Variable, error) {
+func (r *repositoryImpl) ShowVariable(ctx context.Context, namespace, name string) (*Variable, error) {
 	input := &ssm.GetParameterInput{Name: r.variablePath(namespace, name), WithDecryption: aws.Bool(true)}
 	output, err := r.GetParameterWithContext(ctx, input)
 	if err != nil {

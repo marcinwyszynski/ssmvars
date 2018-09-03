@@ -77,6 +77,43 @@ func (vs *variableRepositoryTestSuite) TestListVariables() {
 	vs.True(ret[1].WriteOnly)
 }
 
+func (vs *variableRepositoryTestSuite) TestShowVariable() {
+	const scope = "scope"
+	const fullPath = "/testPrefix/variables/scope/NAME"
+	ctx := context.Background()
+
+	vs.mockAPI.On(
+		"GetParameterWithContext",
+		ctx,
+		mock.MatchedBy(func(in interface{}) bool {
+			input, ok := in.(*ssm.GetParameterInput)
+			if !ok {
+				return false
+			}
+			vs.Equal(fullPath, *input.Name)
+			vs.True(*input.WithDecryption)
+			return true
+		}),
+		[]request.Option(nil),
+	).Return(
+		&ssm.GetParameterOutput{
+			Parameter: &ssm.Parameter{
+				Name:  aws.String(fullPath),
+				Type:  aws.String("SecureString"),
+				Value: aws.String("secret"),
+			},
+		},
+		nil,
+	)
+
+	ret, err := vs.sut.ShowVariable(ctx, scope, "NAME")
+	vs.NoError(err)
+
+	vs.Equal("NAME", ret.Name)
+	vs.Equal("secret", ret.Value)
+	vs.True(ret.WriteOnly)
+}
+
 func (vs *variableRepositoryTestSuite) TestCreateVariablePlain() {
 	const scope = "scope"
 	ctx := context.Background()
