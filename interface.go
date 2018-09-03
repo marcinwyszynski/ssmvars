@@ -16,6 +16,9 @@ type Variable struct {
 
 // Reader provides are 'read-only' proxy to variables stored in SSM.
 type Reader interface {
+	// ShowVariable retrieves an individual variable by its name.
+	ShowVariable(ctx context.Context, namespace, name string) (*Variable, error)
+
 	// ListVariables lists all variables for a given namespace. It does
 	// pagination automatically, with 10 entries per page. In pathological
 	// cases, this operation could take a while.
