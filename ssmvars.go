@@ -15,11 +15,25 @@ import (
 type repositoryImpl struct {
 	ssmiface.SSMAPI
 	pathPrefix string
-	kmsKeyID   string
+	kmsKeyID   *string
 }
 
-// New returns a Variables Repository backed by SSM Parameter Store.
-func New(client ssmiface.SSMAPI, prefix string, kmsKeyID string) VariablesRepository {
+// New returns a Variables ReadWriter backed by SSM Parameter Store.
+func New(client ssmiface.SSMAPI, prefix, kmsKeyID string) ReadWriter {
+	return newRepository(client, prefix, aws.String(kmsKeyID))
+}
+
+// NewReader returns a Variables Reader backed by SSM Parameter Store.
+func NewReader(client ssmiface.SSMAPI, prefix string) Reader {
+	return newRepository(client, prefix, nil)
+}
+
+// NewWriter returns a Variables Writer backed by SSM Parameter Store.
+func NewWriter(client ssmiface.SSMAPI, prefix, kmsKeyID string) Writer {
+	return newRepository(client, prefix, aws.String(kmsKeyID))
+}
+
+func newRepository(client ssmiface.SSMAPI, prefix string, kmsKeyID *string) *repositoryImpl {
 	return &repositoryImpl{
 		SSMAPI:     client,
 		pathPrefix: path.Join(prefix, "variables"),
@@ -36,15 +50,14 @@ func (r *repositoryImpl) ListVariables(ctx context.Context, namespace string) ([
 	}
 
 	vars := make([]*Variable, 0)
-
-	err := r.GetParametersByPathPagesWithContext(ctx, input, func(cur *ssm.GetParametersByPathOutput, _ bool) bool {
+	cursor := func(cur *ssm.GetParametersByPathOutput, _ bool) bool {
 		for _, parameter := range cur.Parameters {
 			vars = append(vars, r.toVariable(namespace, parameter))
 		}
 		return true
-	})
+	}
 
-	return vars, err
+	return vars, r.GetParametersByPathPagesWithContext(ctx, input, cursor)
 }
 
 func (r *repositoryImpl) CreateVariable(ctx context.Context, namespace string, variable *Variable) (*Variable, error) {
@@ -56,7 +69,7 @@ func (r *repositoryImpl) CreateVariable(ctx context.Context, namespace string, v
 	}
 	if variable.WriteOnly {
 		input.Type = aws.String("SecureString")
-		input.KeyId = aws.String(r.kmsKeyID)
+		input.KeyId = r.kmsKeyID
 	}
 	if _, err := r.PutParameterWithContext(ctx, input); err != nil {
 		return nil, errors.Wrap(err, "couldn't put the variable into the parameter store")

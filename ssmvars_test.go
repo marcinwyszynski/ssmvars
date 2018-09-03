@@ -20,7 +20,7 @@ type variableRepositoryTestSuite struct {
 	suite.Suite
 
 	mockAPI *mockSSMAPI
-	sut     VariablesRepository
+	sut     ReadWriter
 }
 
 func (vs *variableRepositoryTestSuite) SetupTest() {
