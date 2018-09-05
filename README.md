@@ -3,6 +3,7 @@
 [![Godoc](https://godoc.org/github.com/marcinwyszynski/ssmvars?status.svg)](http://godoc.org/github.com/marcinwyszynski/ssmvars)
 [![CircleCI](https://circleci.com/gh/marcinwyszynski/ssmvars/tree/master.svg?style=svg)](https://circleci.com/gh/marcinwyszynski/ssmvars/tree/master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/marcinwyszynski/ssmvars)](https://goreportcard.com/report/github.com/marcinwyszynski/ssmvars)
+[![codecov](https://codecov.io/gh/marcinwyszynski/ssmvars/branch/master/graph/badge.svg)](https://codecov.io/gh/marcinwyszynski/ssmvars)
 
 Utility library to store app configuration secrets using AWS SSM [Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-paramstore.html) backend.
 
