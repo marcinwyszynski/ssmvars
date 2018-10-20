@@ -98,6 +98,40 @@ func (r *repositoryImpl) ShowVariable(ctx context.Context, namespace, name strin
 	return r.toVariable(namespace, output.Parameter), nil
 }
 
+func (r *repositoryImpl) Reset(ctx context.Context, namespace string) error {
+	input := &ssm.GetParametersByPathInput{
+		Path:           aws.String(r.namespacePrefix(namespace)),
+		Recursive:      aws.Bool(false),
+		WithDecryption: aws.Bool(true),
+		MaxResults:     aws.Int64(10),
+	}
+
+	var deleteError error
+
+	cursor := func(cur *ssm.GetParametersByPathOutput, _ bool) bool {
+		num := len(cur.Parameters)
+		if num == 0 {
+			return true
+		}
+
+		deleteInput := &ssm.DeleteParametersInput{Names: make([]*string, num, num)}
+		for i, parameter := range cur.Parameters {
+			deleteInput.Names[i] = parameter.Name
+		}
+
+		_, deleteError = r.DeleteParametersWithContext(ctx, deleteInput)
+		return deleteError == nil
+	}
+
+	if err := r.GetParametersByPathPagesWithContext(ctx, input, cursor); err != nil {
+		return err
+	}
+	if deleteError != nil {
+		return deleteError
+	}
+	return nil
+}
+
 func (r *repositoryImpl) namespacePrefix(namespace string) string {
 	return fmt.Sprintf("%s/%s/", r.pathPrefix, namespace)
 }

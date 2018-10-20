@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -19,18 +20,19 @@ const (
 type variableRepositoryTestSuite struct {
 	suite.Suite
 
+	ctx     context.Context
 	mockAPI *mockSSMAPI
 	sut     ReadWriter
 }
 
 func (vs *variableRepositoryTestSuite) SetupTest() {
+	vs.ctx = context.Background()
 	vs.mockAPI = new(mockSSMAPI)
 	vs.sut = New(vs.mockAPI, testPrefix, testKMSKeyID)
 }
 
 func (vs *variableRepositoryTestSuite) TestListVariables() {
 	const scope = "scope"
-	ctx := context.Background()
 
 	vs.mockAPI.parameters = []*ssm.Parameter{
 		{
@@ -47,7 +49,7 @@ func (vs *variableRepositoryTestSuite) TestListVariables() {
 
 	vs.mockAPI.On(
 		"GetParametersByPathPagesWithContext",
-		ctx,
+		vs.ctx,
 		mock.MatchedBy(func(in interface{}) bool {
 			input, ok := in.(*ssm.GetParametersByPathInput)
 			if !ok {
@@ -64,7 +66,7 @@ func (vs *variableRepositoryTestSuite) TestListVariables() {
 		[]request.Option(nil),
 	).Return(nil)
 
-	ret, err := vs.sut.ListVariables(ctx, scope)
+	ret, err := vs.sut.ListVariables(vs.ctx, scope)
 	vs.NoError(err)
 	vs.Len(ret, 2)
 
@@ -80,11 +82,10 @@ func (vs *variableRepositoryTestSuite) TestListVariables() {
 func (vs *variableRepositoryTestSuite) TestShowVariable() {
 	const scope = "scope"
 	const fullPath = "/testPrefix/variables/scope/NAME"
-	ctx := context.Background()
 
 	vs.mockAPI.On(
 		"GetParameterWithContext",
-		ctx,
+		vs.ctx,
 		mock.MatchedBy(func(in interface{}) bool {
 			input, ok := in.(*ssm.GetParameterInput)
 			if !ok {
@@ -106,7 +107,7 @@ func (vs *variableRepositoryTestSuite) TestShowVariable() {
 		nil,
 	)
 
-	ret, err := vs.sut.ShowVariable(ctx, scope, "NAME")
+	ret, err := vs.sut.ShowVariable(vs.ctx, scope, "NAME")
 	vs.NoError(err)
 
 	vs.Equal("NAME", ret.Name)
@@ -116,13 +117,12 @@ func (vs *variableRepositoryTestSuite) TestShowVariable() {
 
 func (vs *variableRepositoryTestSuite) TestCreateVariablePlain() {
 	const scope = "scope"
-	ctx := context.Background()
 
 	variable := &Variable{Name: "NAME", Value: "value", WriteOnly: false}
 
 	vs.mockAPI.On(
 		"PutParameterWithContext",
-		ctx,
+		vs.ctx,
 		mock.MatchedBy(func(in interface{}) bool {
 			input, ok := in.(*ssm.PutParameterInput)
 			if !ok {
@@ -138,7 +138,7 @@ func (vs *variableRepositoryTestSuite) TestCreateVariablePlain() {
 		[]request.Option(nil),
 	).Return((*ssm.PutParameterOutput)(nil), nil)
 
-	ret, err := vs.sut.CreateVariable(ctx, scope, variable)
+	ret, err := vs.sut.CreateVariable(vs.ctx, scope, variable)
 	vs.NoError(err)
 
 	vs.Equal(variable.Name, ret.Name)
@@ -221,6 +221,55 @@ func (vs *variableRepositoryTestSuite) TestDeleteVariable() {
 	vs.Equal("NAME", ret.Name)
 	vs.Equal("secret", ret.Value)
 	vs.True(ret.WriteOnly)
+}
+
+func (vs *variableRepositoryTestSuite) TestResetOK() {
+	const scope = "scope"
+
+	vs.mockAPI.parameters = []*ssm.Parameter{{Name: aws.String("bacon")}}
+
+	vs.withPagination(nil)
+	vs.withDeletion([]*string{aws.String("bacon")}, nil)
+
+	vs.NoError(vs.sut.Reset(vs.ctx, scope))
+}
+
+func (vs *variableRepositoryTestSuite) TestResetListError() {
+	const scope = "scope"
+
+	vs.withPagination(errors.New("bacon"))
+
+	vs.EqualError(vs.sut.Reset(vs.ctx, scope), "bacon")
+}
+
+func (vs *variableRepositoryTestSuite) TestResetDeleteError() {
+	const scope = "scope"
+
+	vs.mockAPI.parameters = []*ssm.Parameter{{Name: aws.String("bacon")}}
+
+	vs.withPagination(nil)
+	vs.withDeletion([]*string{aws.String("bacon")}, errors.New("bacon"))
+
+	vs.EqualError(vs.sut.Reset(vs.ctx, scope), "bacon")
+}
+
+func (vs *variableRepositoryTestSuite) withPagination(err error) {
+	vs.mockAPI.On(
+		"GetParametersByPathPagesWithContext",
+		vs.ctx,
+		mock.AnythingOfType("*ssm.GetParametersByPathInput"),
+		mock.AnythingOfType("func(*ssm.GetParametersByPathOutput, bool) bool"),
+		[]request.Option(nil),
+	).Return(err)
+}
+
+func (vs *variableRepositoryTestSuite) withDeletion(names []*string, err error) {
+	vs.mockAPI.On(
+		"DeleteParametersWithContext",
+		vs.ctx,
+		&ssm.DeleteParametersInput{Names: names},
+		[]request.Option(nil),
+	).Return((*ssm.DeleteParametersOutput)(nil), err)
 }
 
 func TestVariableRepository(t *testing.T) {

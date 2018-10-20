@@ -32,6 +32,9 @@ type Writer interface {
 
 	// DeleteVariable deletes an existing variable.
 	DeleteVariable(ctx context.Context, namespace, name string) (*Variable, error)
+
+	// Reset removes all variables for a given namespace.
+	Reset(ctx context.Context, namespace string) error
 }
 
 // ReadWriter is a 'read-write' proxy to variables stored in SSM.
